@@ -12,20 +12,29 @@ def get_access_token():
     url = "https://openapi.seatalk.io/auth/app_access_token"
     try:
         r = requests.post(url, json={"app_id": APP_ID, "app_secret": APP_SECRET}, timeout=10)
+        print(f"TOKEN RESULT: {r.json()}")
         return r.json().get("app_access_token", "")
-    except:
+    except Exception as e:
+        print(f"TOKEN ERROR: {e}")
         return ""
 
-def send_message(user_id, text):
+def send_message(email, text):
     token = get_access_token()
     if not token:
+        print("NO TOKEN!")
         return
     url = "https://openapi.seatalk.io/messaging/v2/single_chat"
     headers = {"Authorization": f"Bearer {token}", "Content-Type": "application/json"}
-    payload = {"receiver_id": user_id, "message_type": "text", "text": {"content": text}}
+    payload = {
+        "receiver_id": email,
+        "receiver_id_type": "email",
+        "message_type": "text",
+        "text": {"content": text}
+    }
+    print(f"SENDING TO {email}")
     try:
         r = requests.post(url, json=payload, headers=headers, timeout=10)
-        print(f"SEND RESULT: {r.json()}")
+        print(f"SEND RESULT: {r.status_code} {r.text}")
     except Exception as e:
         print(f"SEND ERROR: {e}")
 
@@ -56,13 +65,10 @@ def webhook_post():
         raw = request.data
         print(f"RAW: {raw}")
         data = json.loads(raw)
-
         event = data.get("event", {})
 
-        # Xử lý challenge
         if "seatalk_challenge" in event:
             challenge = event["seatalk_challenge"]
-            print(f"CHALLENGE: {challenge}")
             return json.dumps({"seatalk_challenge": challenge}), 200, {"Content-Type": "application/json"}
 
         if "seatalk_challenge" in data:
@@ -72,16 +78,13 @@ def webhook_post():
         event_type = data.get("event_type", data.get("type", ""))
         print(f"EVENT_TYPE: {event_type}")
 
-        # Xử lý tin nhắn
         if event_type == "message_from_bot_subscriber":
-            # Lấy seatalk_id của người gửi
-            from_user = event.get("seatalk_id", "")
-            # Lấy nội dung tin nhắn
+            email = event.get("email", "")
             message_text = event.get("message", {}).get("text", {}).get("content", "")
-            print(f"FROM: {from_user}, MSG: {message_text}")
-            if from_user and message_text:
+            print(f"EMAIL: {email}, MSG: {message_text}")
+            if email and message_text:
                 reply = generate_reply(message_text)
-                send_message(from_user, reply)
+                send_message(email, reply)
 
     except Exception as e:
         print(f"ERROR: {e}")
