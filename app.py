@@ -57,7 +57,7 @@ def home():
 
 @app.route("/webhook/seatalk", methods=["GET"])
 def webhook_get():
-    return jsonify({"status": "ok"}), 200
+    return json.dumps({"status": "ok"}), 200, {"Content-Type": "application/json"}
 
 @app.route("/webhook/seatalk", methods=["POST"])
 def webhook_post():
@@ -67,14 +67,24 @@ def webhook_post():
         data = json.loads(raw)
         print(f"PARSED: {data}")
 
-        if "seatalk_challenge" in data:
-            challenge = data["seatalk_challenge"]
-            print(f"CHALLENGE: {challenge}")
+        # Challenge nằm trong "event"
+        event = data.get("event", {})
+        
+        if "seatalk_challenge" in event:
+            challenge = event["seatalk_challenge"]
+            print(f"CHALLENGE FOUND IN EVENT: {challenge}")
             resp = json.dumps({"seatalk_challenge": challenge})
             return resp, 200, {"Content-Type": "application/json"}
 
-        event = data.get("event", {})
-        event_type = data.get("type", "")
+        # Challenge nằm ngoài (phòng trường hợp)
+        if "seatalk_challenge" in data:
+            challenge = data["seatalk_challenge"]
+            print(f"CHALLENGE FOUND IN ROOT: {challenge}")
+            resp = json.dumps({"seatalk_challenge": challenge})
+            return resp, 200, {"Content-Type": "application/json"}
+
+        # Xử lý tin nhắn
+        event_type = data.get("event_type", "")
         if event_type == "bot.receive_message":
             from_user = event.get("from_user_id", "")
             message_text = event.get("message", {}).get("text", {}).get("content", "")
