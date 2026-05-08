@@ -24,9 +24,10 @@ def send_message(user_id, text):
     headers = {"Authorization": f"Bearer {token}", "Content-Type": "application/json"}
     payload = {"receiver_id": user_id, "message_type": "text", "text": {"content": text}}
     try:
-        requests.post(url, json=payload, headers=headers, timeout=10)
-    except:
-        pass
+        r = requests.post(url, json=payload, headers=headers, timeout=10)
+        print(f"SEND RESULT: {r.json()}")
+    except Exception as e:
+        print(f"SEND ERROR: {e}")
 
 def generate_reply(message_text):
     msg = message_text.lower().strip()
@@ -66,19 +67,17 @@ def webhook_post():
 
         if "seatalk_challenge" in data:
             challenge = data["seatalk_challenge"]
-            print(f"CHALLENGE ROOT: {challenge}")
             return json.dumps({"seatalk_challenge": challenge}), 200, {"Content-Type": "application/json"}
 
-        # Log toàn bộ để debug
         event_type = data.get("event_type", data.get("type", ""))
         print(f"EVENT_TYPE: {event_type}")
-        print(f"EVENT: {event}")
 
-        # Xử lý tin nhắn - thử nhiều event_type
-        if event_type in ["bot.receive_message", "message", "receive_message"]:
-            from_user = event.get("from_user_id", event.get("sender_id", ""))
-            msg_obj = event.get("message", event)
-            message_text = msg_obj.get("text", {}).get("content", msg_obj.get("content", ""))
+        # Xử lý tin nhắn
+        if event_type == "message_from_bot_subscriber":
+            # Lấy seatalk_id của người gửi
+            from_user = event.get("seatalk_id", "")
+            # Lấy nội dung tin nhắn
+            message_text = event.get("message", {}).get("text", {}).get("content", "")
             print(f"FROM: {from_user}, MSG: {message_text}")
             if from_user and message_text:
                 reply = generate_reply(message_text)
