@@ -1,4 +1,4 @@
-from flask import Flask, request, jsonify
+from flask import Flask, request
 import requests
 import os
 import json
@@ -10,43 +10,33 @@ APP_SECRET = "1lNck7WR6ABC1yWmbw1diVlhCEsO-Vih"
 
 def get_access_token():
     url = "https://openapi.seatalk.io/auth/app_access_token"
-    payload = {"app_id": APP_ID, "app_secret": APP_SECRET}
     try:
-        response = requests.post(url, json=payload, timeout=10)
-        data = response.json()
-        return data.get("app_access_token", "")
+        r = requests.post(url, json={"app_id": APP_ID, "app_secret": APP_SECRET}, timeout=10)
+        return r.json().get("app_access_token", "")
     except:
         return ""
 
 def send_message(user_id, text):
     token = get_access_token()
     if not token:
-        return {"error": "no token"}
+        return
     url = "https://openapi.seatalk.io/messaging/v2/single_chat"
-    headers = {
-        "Authorization": f"Bearer {token}",
-        "Content-Type": "application/json"
-    }
-    payload = {
-        "receiver_id": user_id,
-        "message_type": "text",
-        "text": {"content": text}
-    }
+    headers = {"Authorization": f"Bearer {token}", "Content-Type": "application/json"}
+    payload = {"receiver_id": user_id, "message_type": "text", "text": {"content": text}}
     try:
-        response = requests.post(url, json=payload, headers=headers, timeout=10)
-        return response.json()
+        requests.post(url, json=payload, headers=headers, timeout=10)
     except:
-        return {"error": "send failed"}
+        pass
 
 def generate_reply(message_text):
-    message_text = message_text.lower().strip()
-    if any(w in message_text for w in ["xin chào", "hello", "hi", "chào"]):
+    msg = message_text.lower().strip()
+    if any(w in msg for w in ["xin chào", "hello", "hi", "chào"]):
         return "Xin chào! Tôi là bot Khủng Long 5 Canh 🦖"
-    elif any(w in message_text for w in ["giờ làm việc", "làm việc"]):
+    elif any(w in msg for w in ["giờ làm việc", "làm việc"]):
         return "⏰ Thứ 2-6: 8:00-17:30 | Thứ 7: 8:00-12:00"
-    elif any(w in message_text for w in ["liên hệ", "hotline"]):
+    elif any(w in msg for w in ["liên hệ", "hotline"]):
         return "📞 Hotline: 1900-xxxx\nEmail: support@company.com"
-    elif any(w in message_text for w in ["help", "giúp", "menu"]):
+    elif any(w in msg for w in ["help", "giúp", "menu"]):
         return "📋 Menu:\n- xin chào\n- giờ làm việc\n- liên hệ\n- help"
     else:
         return f"Tôi chưa hiểu '{message_text}'. Gõ 'help' để xem menu!"
@@ -63,34 +53,36 @@ def webhook_get():
 def webhook_post():
     try:
         raw = request.data
-        print(f"RAW DATA: {raw}")
+        print(f"RAW: {raw}")
         data = json.loads(raw)
-        print(f"PARSED: {data}")
 
-        # Challenge nằm trong "event"
         event = data.get("event", {})
-        
+
+        # Xử lý challenge
         if "seatalk_challenge" in event:
             challenge = event["seatalk_challenge"]
-            print(f"CHALLENGE FOUND IN EVENT: {challenge}")
-            resp = json.dumps({"seatalk_challenge": challenge})
-            return resp, 200, {"Content-Type": "application/json"}
+            print(f"CHALLENGE: {challenge}")
+            return json.dumps({"seatalk_challenge": challenge}), 200, {"Content-Type": "application/json"}
 
-        # Challenge nằm ngoài (phòng trường hợp)
         if "seatalk_challenge" in data:
             challenge = data["seatalk_challenge"]
-            print(f"CHALLENGE FOUND IN ROOT: {challenge}")
-            resp = json.dumps({"seatalk_challenge": challenge})
-            return resp, 200, {"Content-Type": "application/json"}
+            print(f"CHALLENGE ROOT: {challenge}")
+            return json.dumps({"seatalk_challenge": challenge}), 200, {"Content-Type": "application/json"}
 
-        # Xử lý tin nhắn
-        event_type = data.get("event_type", "")
-        if event_type == "bot.receive_message":
-            from_user = event.get("from_user_id", "")
-            message_text = event.get("message", {}).get("text", {}).get("content", "")
-            print(f"MSG from {from_user}: {message_text}")
-            reply = generate_reply(message_text)
-            send_message(from_user, reply)
+        # Log toàn bộ để debug
+        event_type = data.get("event_type", data.get("type", ""))
+        print(f"EVENT_TYPE: {event_type}")
+        print(f"EVENT: {event}")
+
+        # Xử lý tin nhắn - thử nhiều event_type
+        if event_type in ["bot.receive_message", "message", "receive_message"]:
+            from_user = event.get("from_user_id", event.get("sender_id", ""))
+            msg_obj = event.get("message", event)
+            message_text = msg_obj.get("text", {}).get("content", msg_obj.get("content", ""))
+            print(f"FROM: {from_user}, MSG: {message_text}")
+            if from_user and message_text:
+                reply = generate_reply(message_text)
+                send_message(from_user, reply)
 
     except Exception as e:
         print(f"ERROR: {e}")
