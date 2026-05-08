@@ -62,13 +62,25 @@ def generate_reply(message_text):
             "Gõ 'help' để xem những gì tôi có thể giúp nhé!"
         )
 
-@app.route("/webhook/seatalk", methods=["POST"])
+@app.route("/webhook/seatalk", methods=["POST", "GET"])
 def webhook():
-    data = request.json
+    # Xử lý GET request (kiểm tra server)
+    if request.method == "GET":
+        return jsonify({"status": "ok"}), 200
+
+    # Lấy data từ POST
+    data = request.get_json(force=True, silent=True)
+
+    if not data:
+        return jsonify({"status": "ok"}), 200
+
+    # Xử lý SeaTalk Challenge (xác thực URL)
     if "seatalk_challenge" in data:
         challenge = data["seatalk_challenge"]
         print(f"✅ Challenge received: {challenge}")
-        return jsonify({"seatalk_challenge": challenge})
+        return jsonify({"seatalk_challenge": challenge}), 200
+
+    # Xử lý tin nhắn từ user
     try:
         event = data.get("event", {})
         event_type = data.get("type", "")
@@ -82,7 +94,8 @@ def webhook():
             print(f"📤 Đã gửi trả lời: {result}")
     except Exception as e:
         print(f"❌ Lỗi: {e}")
-    return jsonify({"status": "ok"})
+
+    return jsonify({"status": "ok"}), 200
 
 @app.route("/", methods=["GET"])
 def home():
