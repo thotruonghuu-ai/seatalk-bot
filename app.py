@@ -7,6 +7,7 @@ app = Flask(__name__)
 
 APP_ID = "MTc4OTk3MjE4NjYw"
 APP_SECRET = "1lNck7WR6ABC1yWmbw1diVIhCEsO-Vih"
+GROQ_API_KEY = "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"
 GEMINI_API_KEY = "AIzaSyBGMW1Pum5Q9oEJHUuOfshBRx21XZNYSSw"
 
 COMPANY_INFO = """
@@ -15,27 +16,35 @@ Hãy trả lời ngắn gọn, thân thiện, chuyên nghiệp bằng tiếng Vi
 Nếu câu hỏi không liên quan đến thông tin bên dưới, hãy dùng kiến thức chung để trả lời.
 Nếu hoàn toàn không biết, hãy nói: "Tôi chưa có thông tin này, vui lòng liên hệ HR hoặc IT."
 
-=== THÔNG TIN CÔNG TY ===
+=== THÔNG TIN Trương Hữu Thọ ===
 - Tên công ty: SPX Express
-- Email IT: it-support@spxexpress.com
-- Email HR: hr@spxexpress.com
+- Email Chủ Khủng Long: tho.truonghuu@spxexpress.com
+- Seatalk: https://link.seatalk.io/profile/open?seatalk_id=1382308472
 
 === GIỜ LÀM VIỆC ===
-- Thứ 2 - Thứ 6: 8:00 - 17:30
-- Thứ 7: 8:00 - 12:00
-- Chủ nhật: Nghỉ
+- Thứ 2 - Thứ 7: 9:00 - 18:00
+- Chủ nhật: Nghỉ và sẽ tàng hình
+- 
 
 === QUY TRÌNH XIN NGHỈ PHÉP ===
 - Báo trước ít nhất 3 ngày làm việc
 - Gửi đơn xin nghỉ phép qua form HR
 - Cần được quản lý trực tiếp phê duyệt
+- Liên hệ: đến các Sup trong ca
+- nam.nguyenhoang01@spxexpress.com	Nguyễn Hoàng Nam
+tan.truongminh@spxexpress.com	Trương Minh Tân
+truoc.truongviet@spxexpress.com	Trương Việt Trước
 
-=== SỰ CỐ IT ===
-- Email: it-support@spxexpress.com
-- Máy tính hỏng, mất mật khẩu, lỗi hệ thống liên hệ IT
+=== SỰ CỐ BOT KHUNG LONG ===
+- Email Chủ Khủng Long: tho.truonghuu@spxexpress.com
+- Seatalk: https://link.seatalk.io/profile/open?seatalk_id=1382308472
+- đâng hoàn thiện
 
-=== THANH TOÁN & CHI PHÍ ===
-- Nộp hóa đơn gốc cho phòng kế toán trước ngày 25 hàng tháng
+=== Bé BOT ===
+- Tôi không biết đến haha!
+
+=== Xuân Nhi, Liễu Thị Xuân Nhi ===
+Bạn này là Lead SOC rất dữ
 """
 
 def get_access_token():
@@ -66,14 +75,38 @@ def send_message(employee_code, text):
     except Exception as e:
         print(f"SEND ERROR: {e}")
 
+def ask_groq(message_text):
+    try:
+        url = "https://api.groq.com/openai/v1/chat/completions"
+        headers = {
+            "Authorization": f"Bearer {GROQ_API_KEY}",
+            "Content-Type": "application/json"
+        }
+        payload = {
+            "model": "llama3-8b-8192",
+            "messages": [
+                {"role": "system", "content": COMPANY_INFO},
+                {"role": "user", "content": message_text}
+            ],
+            "max_tokens": 800,
+            "temperature": 0.7
+        }
+        r = requests.post(url, headers=headers, json=payload, timeout=30)
+        result = r.json()
+        print(f"GROQ STATUS: {r.status_code}")
+        if "error" in result:
+            print(f"GROQ ERROR: {result['error']}")
+            return None
+        choices = result.get("choices", [])
+        if choices:
+            print("GROQ REPLY OK")
+            return choices[0]["message"]["content"]
+    except Exception as e:
+        print(f"GROQ EXCEPTION: {e}")
+    return None
+
 def ask_gemini(message_text):
-    # Thử gemini-2.0-flash trước
-    models = [
-        "gemini-2.0-flash",
-        "gemini-1.5-flash",
-        "gemini-1.5-flash-latest"
-    ]
-    
+    models = ["gemini-2.0-flash-lite", "gemini-2.0-flash-exp", "gemini-1.0-pro"]
     for model in models:
         try:
             url = f"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent?key={GEMINI_API_KEY}"
@@ -82,57 +115,54 @@ def ask_gemini(message_text):
                 "contents": [
                     {
                         "role": "user",
-                        "parts": [
-                            {
-                                "text": f"{COMPANY_INFO}\n\nNgười dùng hỏi: {message_text}"
-                            }
-                        ]
+                        "parts": [{"text": f"{COMPANY_INFO}\n\nNgười dùng hỏi: {message_text}"}]
                     }
                 ],
-                "generationConfig": {
-                    "maxOutputTokens": 800,
-                    "temperature": 0.7
-                }
+                "generationConfig": {"maxOutputTokens": 800, "temperature": 0.7}
             }
             r = requests.post(url, headers=headers, json=payload, timeout=30)
             result = r.json()
             print(f"GEMINI [{model}] STATUS: {r.status_code}")
-            print(f"GEMINI [{model}] RESULT: {result}")
-            
-            # Kiểm tra lỗi
             if "error" in result:
-                print(f"MODEL {model} ERROR: {result['error']}")
+                print(f"GEMINI [{model}] ERROR: {result['error'].get('message','')[:80]}")
                 continue
-                
             candidates = result.get("candidates", [])
             if candidates:
-                text_reply = candidates[0]["content"]["parts"][0]["text"]
-                print(f"REPLY: {text_reply}")
-                return text_reply
-                
+                print(f"GEMINI REPLY OK from {model}")
+                return candidates[0]["content"]["parts"][0]["text"]
         except Exception as e:
             print(f"GEMINI [{model}] EXCEPTION: {e}")
             continue
-    
-    # Fallback: trả lời theo keyword nếu Gemini lỗi hết
-    return fallback_reply(message_text)
+    return None
 
 def fallback_reply(message_text):
     msg = message_text.lower().strip()
     if any(w in msg for w in ["xin chào", "hello", "hi", "chào", "hey"]):
         return "Xin chào! 👋 Tôi là bot Khủng Long 5 Canh của SPX Express. Tôi có thể giúp gì cho bạn?"
-    elif any(w in msg for w in ["giờ làm việc", "giờ mở cửa", "làm việc mấy giờ"]):
+    elif any(w in msg for w in ["giờ làm việc", "mấy giờ", "làm việc"]):
         return "⏰ Giờ làm việc:\n- Thứ 2 - Thứ 6: 8:00 - 17:30\n- Thứ 7: 8:00 - 12:00\n- Chủ nhật: Nghỉ"
-    elif any(w in msg for w in ["nghỉ phép", "xin nghỉ", "nghỉ"]):
-        return "📋 Quy trình xin nghỉ phép:\n1. Báo trước ít nhất 3 ngày\n2. Gửi đơn qua form HR\n3. Chờ quản lý phê duyệt\nLiên hệ: hr@spxexpress.com"
-    elif any(w in msg for w in ["it", "máy tính", "mật khẩu", "lỗi", "sự cố"]):
-        return "🖥️ Hỗ trợ IT:\nEmail: it-support@spxexpress.com\nMô tả sự cố và gửi email, IT sẽ phản hồi sớm nhất!"
-    elif any(w in msg for w in ["lương", "thanh toán", "hóa đơn", "kế toán"]):
-        return "💰 Thanh toán chi phí:\nNộp hóa đơn gốc cho kế toán trước ngày 25 hàng tháng."
-    elif any(w in msg for w in ["help", "giúp", "menu", "hướng dẫn"]):
-        return "📋 Tôi có thể giúp bạn về:\n- Giờ làm việc\n- Xin nghỉ phép\n- Sự cố IT\n- Thanh toán chi phí\n- Và nhiều câu hỏi khác!\n\nCứ hỏi tự nhiên nhé 😊"
+    elif any(w in msg for w in ["nghỉ phép", "xin nghỉ"]):
+        return "📋 Xin nghỉ phép:\n1. Báo trước ít nhất 3 ngày\n2. Gửi đơn qua form HR\n3. Chờ quản lý phê duyệt\nLiên hệ: hr@spxexpress.com"
+    elif any(w in msg for w in ["it", "máy tính", "mật khẩu", "lỗi"]):
+        return "🖥️ Hỗ trợ IT:\nEmail: it-support@spxexpress.com"
+    elif any(w in msg for w in ["lương", "hóa đơn", "kế toán"]):
+        return "💰 Nộp hóa đơn cho kế toán trước ngày 25 hàng tháng."
+    elif any(w in msg for w in ["help", "giúp", "menu"]):
+        return "📋 Tôi có thể giúp:\n- Giờ làm việc\n- Xin nghỉ phép\n- Sự cố IT\n- Thanh toán\nCứ hỏi tự nhiên nhé! 😊"
     else:
-        return f"Tôi nhận được câu hỏi của bạn về '{message_text}'.\nHiện tôi đang gặp sự cố kết nối AI. Vui lòng liên hệ:\n- IT: it-support@spxexpress.com\n- HR: hr@spxexpress.com"
+        return "Liên hệ hỗ trợ:\n- IT: it-support@spxexpress.com\n- HR: hr@spxexpress.com"
+
+def get_reply(message_text):
+    print("Trying GROQ...")
+    reply = ask_groq(message_text)
+    if reply:
+        return reply
+    print("GROQ failed, trying GEMINI...")
+    reply = ask_gemini(message_text)
+    if reply:
+        return reply
+    print("Both AI failed, using FALLBACK")
+    return fallback_reply(message_text)
 
 @app.route("/", methods=["GET"])
 def home():
@@ -163,7 +193,7 @@ def webhook_post():
             message_text = event.get("message", {}).get("text", {}).get("content", "")
             print(f"EMPLOYEE_CODE: {employee_code}, MSG: {message_text}")
             if employee_code and message_text:
-                reply = ask_gemini(message_text)
+                reply = get_reply(message_text)
                 send_message(employee_code, reply)
 
     except Exception as e:
