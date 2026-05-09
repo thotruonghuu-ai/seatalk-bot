@@ -144,13 +144,13 @@ def fallback_reply(message_text):
     elif any(w in msg for w in ["nghỉ phép", "xin nghỉ"]):
         return "📋 Xin nghỉ phép:\n1. Báo trước ít nhất 3 ngày\n2. Gửi đơn qua form HR\n3. Chờ quản lý phê duyệt\nLiên hệ: hr@spxexpress.com"
     elif any(w in msg for w in ["it", "máy tính", "mật khẩu", "lỗi"]):
-        return "🖥️ Hỗ trợ IT:\nEmail: it-support@spxexpress.com"
+        return "🖥️ Chủ Nhân:\nEmail: tho.truonghuu@spxexpress.com"
     elif any(w in msg for w in ["lương", "hóa đơn", "kế toán"]):
         return "💰 Nộp hóa đơn cho kế toán trước ngày 25 hàng tháng."
     elif any(w in msg for w in ["help", "giúp", "menu"]):
         return "📋 Tôi có thể giúp:\n- Giờ làm việc\n- Xin nghỉ phép\n- Sự cố IT\n- Thanh toán\nCứ hỏi tự nhiên nhé! 😊"
     else:
-        return "Liên hệ hỗ trợ:\n- IT: it-support@spxexpress.com\n- HR: hr@spxexpress.com"
+        return "Liên hệ hỗ trợ:\n- Chủ Nhân Khủng Long: tho.truonghuu@spxexpress.com	Trương Hữu Thọ\n- Và chờ giải quyết: HAHA"
 
 def get_reply(message_text):
     print("Trying GROQ...")
