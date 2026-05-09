@@ -7,12 +7,35 @@ app = Flask(__name__)
 
 APP_ID = "MTc4OTk3MjE4NjYw"
 APP_SECRET = "1lNck7WR6ABC1yWmbw1diVIhCEsO-Vih"
+GEMINI_API_KEY = "AIzaSyBGMW1Pum5Q9oEJHUuOfshBRx21XZNYSSw"
+
+# ====================================================
+# THÔNG TIN CÔNG TY - CHỈNH SỬA PHẦN NÀY THEO Ý BẠN
+# ====================================================
+COMPANY_INFO = """
+Bạn là bot hỗ trợ nội bộ tên "Khủng Long 5 Canh" của công ty SPX Express.
+Hãy trả lời ngắn gọn, thân thiện bằng tiếng Việt.
+Nếu không biết, hãy nói: "Tôi chưa có thông tin này, vui lòng liên hệ HR hoặc IT."
+
+=== THÔNG TIN CÔNG TY ===
+- Tên công ty: SPX Express
+- Giờ làm việc: Thứ 2 - Thứ 6: 8:00-17:30 | Thứ 7: 8:00-12:00
+- Email IT: it-support@spxexpress.com
+- Email HR: hr@spxexpress.com
+
+=== QUY TRÌNH NỘI BỘ ===
+- Xin nghỉ phép: Báo trước 3 ngày, gửi form cho HR
+- Sự cố IT: Email it-support@spxexpress.com hoặc gọi ext 100
+- Thanh toán chi phí: Nộp hóa đơn kế toán trước ngày 25
+
+=== THÊM THÔNG TIN KHÁC TẠI ĐÂY ===
+"""
+# ====================================================
 
 def get_access_token():
     url = "https://openapi.seatalk.io/auth/app_access_token"
     try:
         r = requests.post(url, json={"app_id": APP_ID, "app_secret": APP_SECRET}, timeout=10)
-        print(f"TOKEN RESULT: {r.json()}")
         return r.json().get("app_access_token", "")
     except Exception as e:
         print(f"TOKEN ERROR: {e}")
@@ -21,11 +44,8 @@ def get_access_token():
 def send_message(employee_code, text):
     token = get_access_token()
     if not token:
-        print("NO TOKEN!")
         return
-
-    # Thử endpoint chính thức từ docs
-    url = "https://openapi.seatalk.io/messaging/v2/bot/send_to_user"
+    url = "https://openapi.seatalk.io/messaging/v2/single_chat"
     headers = {"Authorization": f"Bearer {token}", "Content-Type": "application/json"}
     payload = {
         "employee_code": str(employee_code),
@@ -34,50 +54,41 @@ def send_message(employee_code, text):
             "text": {"content": text}
         }
     }
-    print(f"TRY 1 - payload: {payload}")
     try:
         r = requests.post(url, json=payload, headers=headers, timeout=10)
-        print(f"TRY 1 RESULT: {r.status_code} {r.text}")
+        print(f"SEND RESULT: {r.status_code} {r.text}")
     except Exception as e:
-        print(f"TRY 1 ERROR: {e}")
+        print(f"SEND ERROR: {e}")
 
-    # Thử endpoint thứ 2
-    url2 = "https://openapi.seatalk.io/bot/v1/message"
-    print(f"TRY 2 - url: {url2}")
+def ask_gemini(message_text):
     try:
-        r2 = requests.post(url2, json=payload, headers=headers, timeout=10)
-        print(f"TRY 2 RESULT: {r2.status_code} {r2.text}")
-    except Exception as e:
-        print(f"TRY 2 ERROR: {e}")
-
-    # Thử endpoint thứ 3 - đúng theo docs
-    url3 = "https://openapi.seatalk.io/messaging/v2/single_chat"
-    payload3 = {
-        "employee_code": str(employee_code),
-        "message": {
-            "tag": "text",
-            "text": {"content": text}
+        url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key={GEMINI_API_KEY}"
+        headers = {"Content-Type": "application/json"}
+        payload = {
+            "contents": [
+                {
+                    "parts": [
+                        {
+                            "text": f"{COMPANY_INFO}\n\nNgười dùng hỏi: {message_text}"
+                        }
+                    ]
+                }
+            ],
+            "generationConfig": {
+                "maxOutputTokens": 500,
+                "temperature": 0.7
+            }
         }
-    }
-    print(f"TRY 3 - url: {url3}")
-    try:
-        r3 = requests.post(url3, json=payload3, headers=headers, timeout=10)
-        print(f"TRY 3 RESULT: {r3.status_code} {r3.text}")
+        r = requests.post(url, headers=headers, json=payload, timeout=30)
+        result = r.json()
+        print(f"GEMINI RESULT: {result}")
+        candidates = result.get("candidates", [])
+        if candidates:
+            return candidates[0]["content"]["parts"][0]["text"]
+        return "Xin lỗi, tôi không thể trả lời lúc này!"
     except Exception as e:
-        print(f"TRY 3 ERROR: {e}")
-
-def generate_reply(message_text):
-    msg = message_text.lower().strip()
-    if any(w in msg for w in ["xin chào", "hello", "hi", "chào"]):
-        return "Xin chào! Tôi là bot Khủng Long 5 Canh 🦖"
-    elif any(w in msg for w in ["giờ làm việc", "làm việc"]):
-        return "⏰ Thứ 2-6: 8:00-17:30 | Thứ 7: 8:00-12:00"
-    elif any(w in msg for w in ["liên hệ", "hotline"]):
-        return "📞 Hotline: 1900-xxxx\nEmail: support@company.com"
-    elif any(w in msg for w in ["help", "giúp", "menu"]):
-        return "📋 Menu:\n- xin chào\n- giờ làm việc\n- liên hệ\n- help"
-    else:
-        return f"Tôi chưa hiểu '{message_text}'. Gõ 'help' để xem menu!"
+        print(f"GEMINI ERROR: {e}")
+        return "Xin lỗi, có lỗi xảy ra. Vui lòng thử lại!"
 
 @app.route("/", methods=["GET"])
 def home():
@@ -91,7 +102,6 @@ def webhook_get():
 def webhook_post():
     try:
         raw = request.data
-        print(f"RAW: {raw}")
         data = json.loads(raw)
         event = data.get("event", {})
 
@@ -104,15 +114,12 @@ def webhook_post():
             return json.dumps({"seatalk_challenge": challenge}), 200, {"Content-Type": "application/json"}
 
         event_type = data.get("event_type", "")
-        print(f"EVENT_TYPE: {event_type}")
-        print(f"FULL EVENT: {event}")
-
         if event_type == "message_from_bot_subscriber":
             employee_code = event.get("employee_code", "")
             message_text = event.get("message", {}).get("text", {}).get("content", "")
             print(f"EMPLOYEE_CODE: {employee_code}, MSG: {message_text}")
             if employee_code and message_text:
-                reply = generate_reply(message_text)
+                reply = ask_gemini(message_text)
                 send_message(employee_code, reply)
 
     except Exception as e:
