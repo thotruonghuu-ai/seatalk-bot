@@ -10,25 +10,48 @@ APP_SECRET = "1lNck7WR6ABC1yWmbw1diVIhCEsO-Vih"
 GEMINI_API_KEY = "AIzaSyBGMW1Pum5Q9oEJHUuOfshBRx21XZNYSSw"
 
 # ====================================================
-# THÔNG TIN CÔNG TY - CHỈNH SỬA PHẦN NÀY THEO Ý BẠN
+# THÔNG TIN CÔNG TY - BẠN CHỈ CẦN CHỈNH SỬA PHẦN NÀY
+# Thêm bất kỳ thông tin gì ở đây, bot sẽ tự hiểu và trả lời
 # ====================================================
 COMPANY_INFO = """
 Bạn là bot hỗ trợ nội bộ tên "Khủng Long 5 Canh" của công ty SPX Express.
-Hãy trả lời ngắn gọn, thân thiện bằng tiếng Việt.
-Nếu không biết, hãy nói: "Tôi chưa có thông tin này, vui lòng liên hệ HR hoặc IT."
+Hãy trả lời ngắn gọn, thân thiện, chuyên nghiệp bằng tiếng Việt.
+Nếu câu hỏi không liên quan đến thông tin bên dưới, hãy dùng kiến thức chung của bạn để trả lời.
+Nếu hoàn toàn không biết, hãy nói: "Tôi chưa có thông tin này, vui lòng liên hệ HR hoặc IT để được hỗ trợ."
 
 === THÔNG TIN CÔNG TY ===
 - Tên công ty: SPX Express
-- Giờ làm việc: Thứ 2 - Thứ 6: 8:00-17:30 | Thứ 7: 8:00-12:00
+- Website: spxexpress.com
 - Email IT: it-support@spxexpress.com
 - Email HR: hr@spxexpress.com
 
-=== QUY TRÌNH NỘI BỘ ===
-- Xin nghỉ phép: Báo trước 3 ngày, gửi form cho HR
-- Sự cố IT: Email it-support@spxexpress.com hoặc gọi ext 100
-- Thanh toán chi phí: Nộp hóa đơn kế toán trước ngày 25
+=== GIỜ LÀM VIỆC ===
+- Thứ 2 - Thứ 6: 8:00 - 17:30
+- Thứ 7: 8:00 - 12:00
+- Chủ nhật: Nghỉ
 
-=== THÊM THÔNG TIN KHÁC TẠI ĐÂY ===
+=== QUY TRÌNH XIN NGHỈ PHÉP ===
+- Báo trước ít nhất 3 ngày làm việc
+- Gửi đơn xin nghỉ phép qua form HR
+- Cần được quản lý trực tiếp phê duyệt
+- Liên hệ: hr@spxexpress.com
+
+=== SỰ CỐ IT ===
+- Email: it-support@spxexpress.com
+- Máy tính hỏng, mất mật khẩu, lỗi hệ thống → liên hệ IT
+- Ngoài giờ làm việc: gửi email, IT sẽ phản hồi sáng hôm sau
+
+=== THANH TOÁN & CHI PHÍ ===
+- Nộp hóa đơn gốc cho phòng kế toán
+- Hạn nộp: trước ngày 25 hàng tháng
+- Liên hệ kế toán để biết thêm chi tiết
+
+=== [THÊM THÔNG TIN KHÁC TẠI ĐÂY] ===
+Ví dụ:
+- Chính sách bảo hiểm: ...
+- Phúc lợi nhân viên: ...
+- Danh sách phòng ban: ...
+- Nội quy công ty: ...
 """
 # ====================================================
 
@@ -75,7 +98,7 @@ def ask_gemini(message_text):
                 }
             ],
             "generationConfig": {
-                "maxOutputTokens": 500,
+                "maxOutputTokens": 800,
                 "temperature": 0.7
             }
         }
@@ -85,7 +108,7 @@ def ask_gemini(message_text):
         candidates = result.get("candidates", [])
         if candidates:
             return candidates[0]["content"]["parts"][0]["text"]
-        return "Xin lỗi, tôi không thể trả lời lúc này!"
+        return "Xin lỗi, tôi không thể trả lời lúc này. Vui lòng thử lại!"
     except Exception as e:
         print(f"GEMINI ERROR: {e}")
         return "Xin lỗi, có lỗi xảy ra. Vui lòng thử lại!"
