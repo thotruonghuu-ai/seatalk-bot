@@ -6,7 +6,7 @@ import json
 app = Flask(__name__)
 
 APP_ID = "MTc4OTk3MjE4NjYw"
-APP_SECRET = "1lNck7WR6ABC1yWmbw1diVlhCEsO-Vih"
+APP_SECRET = "1lNck7WR6ABC1yWmbw1diVIhCEsO-Vih"
 
 def get_access_token():
     url = "https://openapi.seatalk.io/auth/app_access_token"
