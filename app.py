@@ -18,37 +18,30 @@ def get_access_token():
         print(f"TOKEN ERROR: {e}")
         return ""
 
-def send_message(email, text):
+def send_message(employee_code, text):
     token = get_access_token()
     if not token:
         print("NO TOKEN!")
         return
 
-    # Dùng đúng endpoint chính thức từ SeaTalk
     url = "https://openapi.seatalk.io/messaging/v2/single_chat"
     headers = {"Authorization": f"Bearer {token}", "Content-Type": "application/json"}
+    
+    # Dùng employee_code
     payload = {
-        "receiver_id": email,
-        "receiver_id_type": "email",
+        "receiver_id": str(employee_code),
+        "receiver_id_type": "employee_code",
         "message": {
             "tag": "text",
             "text": {"content": text}
         }
     }
-    print(f"SENDING to {email}: {payload}")
+    print(f"SENDING with employee_code {employee_code}")
     try:
         r = requests.post(url, json=payload, headers=headers, timeout=10)
         print(f"SEND RESULT: {r.status_code} {r.text}")
     except Exception as e:
         print(f"SEND ERROR: {e}")
-
-    # Thử thêm endpoint v1
-    url2 = "https://openapi.seatalk.io/messaging/v1/single_chat"
-    try:
-        r2 = requests.post(url2, json=payload, headers=headers, timeout=10)
-        print(f"SEND RESULT v1: {r2.status_code} {r2.text}")
-    except Exception as e:
-        print(f"SEND ERROR v1: {e}")
 
 def generate_reply(message_text):
     msg = message_text.lower().strip()
@@ -91,12 +84,12 @@ def webhook_post():
         print(f"EVENT_TYPE: {event_type}")
 
         if event_type == "message_from_bot_subscriber":
-            email = event.get("email", "")
+            employee_code = event.get("employee_code", "")
             message_text = event.get("message", {}).get("text", {}).get("content", "")
-            print(f"EMAIL: {email}, MSG: {message_text}")
-            if email and message_text:
+            print(f"EMPLOYEE_CODE: {employee_code}, MSG: {message_text}")
+            if employee_code and message_text:
                 reply = generate_reply(message_text)
-                send_message(email, reply)
+                send_message(employee_code, reply)
 
     except Exception as e:
         print(f"ERROR: {e}")
