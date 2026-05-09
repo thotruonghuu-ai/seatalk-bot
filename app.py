@@ -9,19 +9,14 @@ APP_ID = "MTc4OTk3MjE4NjYw"
 APP_SECRET = "1lNck7WR6ABC1yWmbw1diVIhCEsO-Vih"
 GEMINI_API_KEY = "AIzaSyBGMW1Pum5Q9oEJHUuOfshBRx21XZNYSSw"
 
-# ====================================================
-# THÔNG TIN CÔNG TY - BẠN CHỈ CẦN CHỈNH SỬA PHẦN NÀY
-# Thêm bất kỳ thông tin gì ở đây, bot sẽ tự hiểu và trả lời
-# ====================================================
 COMPANY_INFO = """
 Bạn là bot hỗ trợ nội bộ tên "Khủng Long 5 Canh" của công ty SPX Express.
 Hãy trả lời ngắn gọn, thân thiện, chuyên nghiệp bằng tiếng Việt.
-Nếu câu hỏi không liên quan đến thông tin bên dưới, hãy dùng kiến thức chung của bạn để trả lời.
-Nếu hoàn toàn không biết, hãy nói: "Tôi chưa có thông tin này, vui lòng liên hệ HR hoặc IT để được hỗ trợ."
+Nếu câu hỏi không liên quan đến thông tin bên dưới, hãy dùng kiến thức chung để trả lời.
+Nếu hoàn toàn không biết, hãy nói: "Tôi chưa có thông tin này, vui lòng liên hệ HR hoặc IT."
 
 === THÔNG TIN CÔNG TY ===
 - Tên công ty: SPX Express
-- Website: spxexpress.com
 - Email IT: it-support@spxexpress.com
 - Email HR: hr@spxexpress.com
 
@@ -34,26 +29,14 @@ Nếu hoàn toàn không biết, hãy nói: "Tôi chưa có thông tin này, vui
 - Báo trước ít nhất 3 ngày làm việc
 - Gửi đơn xin nghỉ phép qua form HR
 - Cần được quản lý trực tiếp phê duyệt
-- Liên hệ: hr@spxexpress.com
 
 === SỰ CỐ IT ===
 - Email: it-support@spxexpress.com
-- Máy tính hỏng, mất mật khẩu, lỗi hệ thống → liên hệ IT
-- Ngoài giờ làm việc: gửi email, IT sẽ phản hồi sáng hôm sau
+- Máy tính hỏng, mất mật khẩu, lỗi hệ thống liên hệ IT
 
 === THANH TOÁN & CHI PHÍ ===
-- Nộp hóa đơn gốc cho phòng kế toán
-- Hạn nộp: trước ngày 25 hàng tháng
-- Liên hệ kế toán để biết thêm chi tiết
-
-=== [THÊM THÔNG TIN KHÁC TẠI ĐÂY] ===
-Ví dụ:
-- Chính sách bảo hiểm: ...
-- Phúc lợi nhân viên: ...
-- Danh sách phòng ban: ...
-- Nội quy công ty: ...
+- Nộp hóa đơn gốc cho phòng kế toán trước ngày 25 hàng tháng
 """
-# ====================================================
 
 def get_access_token():
     url = "https://openapi.seatalk.io/auth/app_access_token"
@@ -84,34 +67,72 @@ def send_message(employee_code, text):
         print(f"SEND ERROR: {e}")
 
 def ask_gemini(message_text):
-    try:
-        url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key={GEMINI_API_KEY}"
-        headers = {"Content-Type": "application/json"}
-        payload = {
-            "contents": [
-                {
-                    "parts": [
-                        {
-                            "text": f"{COMPANY_INFO}\n\nNgười dùng hỏi: {message_text}"
-                        }
-                    ]
+    # Thử gemini-2.0-flash trước
+    models = [
+        "gemini-2.0-flash",
+        "gemini-1.5-flash",
+        "gemini-1.5-flash-latest"
+    ]
+    
+    for model in models:
+        try:
+            url = f"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent?key={GEMINI_API_KEY}"
+            headers = {"Content-Type": "application/json"}
+            payload = {
+                "contents": [
+                    {
+                        "role": "user",
+                        "parts": [
+                            {
+                                "text": f"{COMPANY_INFO}\n\nNgười dùng hỏi: {message_text}"
+                            }
+                        ]
+                    }
+                ],
+                "generationConfig": {
+                    "maxOutputTokens": 800,
+                    "temperature": 0.7
                 }
-            ],
-            "generationConfig": {
-                "maxOutputTokens": 800,
-                "temperature": 0.7
             }
-        }
-        r = requests.post(url, headers=headers, json=payload, timeout=30)
-        result = r.json()
-        print(f"GEMINI RESULT: {result}")
-        candidates = result.get("candidates", [])
-        if candidates:
-            return candidates[0]["content"]["parts"][0]["text"]
-        return "Xin lỗi, tôi không thể trả lời lúc này. Vui lòng thử lại!"
-    except Exception as e:
-        print(f"GEMINI ERROR: {e}")
-        return "Xin lỗi, có lỗi xảy ra. Vui lòng thử lại!"
+            r = requests.post(url, headers=headers, json=payload, timeout=30)
+            result = r.json()
+            print(f"GEMINI [{model}] STATUS: {r.status_code}")
+            print(f"GEMINI [{model}] RESULT: {result}")
+            
+            # Kiểm tra lỗi
+            if "error" in result:
+                print(f"MODEL {model} ERROR: {result['error']}")
+                continue
+                
+            candidates = result.get("candidates", [])
+            if candidates:
+                text_reply = candidates[0]["content"]["parts"][0]["text"]
+                print(f"REPLY: {text_reply}")
+                return text_reply
+                
+        except Exception as e:
+            print(f"GEMINI [{model}] EXCEPTION: {e}")
+            continue
+    
+    # Fallback: trả lời theo keyword nếu Gemini lỗi hết
+    return fallback_reply(message_text)
+
+def fallback_reply(message_text):
+    msg = message_text.lower().strip()
+    if any(w in msg for w in ["xin chào", "hello", "hi", "chào", "hey"]):
+        return "Xin chào! 👋 Tôi là bot Khủng Long 5 Canh của SPX Express. Tôi có thể giúp gì cho bạn?"
+    elif any(w in msg for w in ["giờ làm việc", "giờ mở cửa", "làm việc mấy giờ"]):
+        return "⏰ Giờ làm việc:\n- Thứ 2 - Thứ 6: 8:00 - 17:30\n- Thứ 7: 8:00 - 12:00\n- Chủ nhật: Nghỉ"
+    elif any(w in msg for w in ["nghỉ phép", "xin nghỉ", "nghỉ"]):
+        return "📋 Quy trình xin nghỉ phép:\n1. Báo trước ít nhất 3 ngày\n2. Gửi đơn qua form HR\n3. Chờ quản lý phê duyệt\nLiên hệ: hr@spxexpress.com"
+    elif any(w in msg for w in ["it", "máy tính", "mật khẩu", "lỗi", "sự cố"]):
+        return "🖥️ Hỗ trợ IT:\nEmail: it-support@spxexpress.com\nMô tả sự cố và gửi email, IT sẽ phản hồi sớm nhất!"
+    elif any(w in msg for w in ["lương", "thanh toán", "hóa đơn", "kế toán"]):
+        return "💰 Thanh toán chi phí:\nNộp hóa đơn gốc cho kế toán trước ngày 25 hàng tháng."
+    elif any(w in msg for w in ["help", "giúp", "menu", "hướng dẫn"]):
+        return "📋 Tôi có thể giúp bạn về:\n- Giờ làm việc\n- Xin nghỉ phép\n- Sự cố IT\n- Thanh toán chi phí\n- Và nhiều câu hỏi khác!\n\nCứ hỏi tự nhiên nhé 😊"
+    else:
+        return f"Tôi nhận được câu hỏi của bạn về '{message_text}'.\nHiện tôi đang gặp sự cố kết nối AI. Vui lòng liên hệ:\n- IT: it-support@spxexpress.com\n- HR: hr@spxexpress.com"
 
 @app.route("/", methods=["GET"])
 def home():
