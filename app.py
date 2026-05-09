@@ -28,10 +28,14 @@ def send_message(email, text):
     payload = {
         "receiver_id": email,
         "receiver_id_type": "email",
-        "message_type": "text",
-        "text": {"content": text}
+        "message": {
+            "tag": "text",
+            "text": {
+                "content": text
+            }
+        }
     }
-    print(f"SENDING TO {email}")
+    print(f"SENDING TO {email}: {payload}")
     try:
         r = requests.post(url, json=payload, headers=headers, timeout=10)
         print(f"SEND RESULT: {r.status_code} {r.text}")
