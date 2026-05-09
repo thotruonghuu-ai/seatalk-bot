@@ -24,11 +24,11 @@ def send_message(seatalk_id, text):
         print("NO TOKEN!")
         return
 
-    # Dùng đúng API gửi tin cho bot subscriber
-    url = "https://openapi.seatalk.io/bot/send_message"
+    url = "https://openapi.seatalk.io/messaging/v2/bot/send_message"
     headers = {"Authorization": f"Bearer {token}", "Content-Type": "application/json"}
     payload = {
-        "seatalk_id": str(seatalk_id),
+        "receiver_id": str(seatalk_id),
+        "receiver_id_type": "seatalk_id",
         "message": {
             "tag": "text",
             "text": {"content": text}
