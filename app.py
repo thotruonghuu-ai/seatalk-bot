@@ -16,7 +16,6 @@ GEMINI_API_KEY = "AIzaSyBGMW1Pum5Q9oEJHUuOfshBRx21XZNYSSw"
 SPREADSHEET_ID = "1rcZFt0rb1hMpYSY_4S3sGdnIOFLaUiVWt2FLgEI0wbE"
 SHEETS_BASE_URL = f"https://docs.google.com/spreadsheets/d/{SPREADSHEET_ID}/gviz/tq?tqx=out:json&sheet="
 
-# Sheet names (URL encoded khi cần)
 SHEET_OE_PROFILE    = "OE team profile"
 SHEET_TASK_CALENDAR = "OE Task Calendar"
 SHEET_OE_LIBRARY    = "OE Library"
@@ -25,7 +24,6 @@ SHEET_ONBOARDING_34 = "3.4 Onboarding AOM"
 
 # ===================== UTILS =====================
 def remove_accents(text):
-    """Bỏ dấu tiếng Việt để so sánh mờ (fuzzy)"""
     if not text:
         return ""
     text = str(text)
@@ -36,15 +34,12 @@ def normalize(text):
     return remove_accents(text)
 
 def fetch_sheet_data(sheet_name):
-    """Lấy dữ liệu từ Google Sheets qua URL công khai (gviz/tq)"""
     try:
         import urllib.parse
         encoded = urllib.parse.quote(sheet_name)
         url = SHEETS_BASE_URL + encoded
         r = requests.get(url, timeout=15)
-        # Response dạng: /*O_o*/\ngoogle.visualization.Query.setResponse({...})
         text = r.text
-        # Tách JSON ra khỏi callback
         start = text.index('{')
         end = text.rindex('}') + 1
         raw_json = text[start:end]
@@ -68,7 +63,6 @@ def fetch_sheet_data(sheet_name):
         return [], []
 
 def safe_col(row, idx):
-    """Lấy giá trị cột an toàn (index 0-based)"""
     try:
         return row[idx] if idx < len(row) else ""
     except:
@@ -86,6 +80,7 @@ def query_oe_profile(query_text):
     Cột E (idx 4)  = Size
     Cột F (idx 5)  = Full Name  ← TÌM KIẾM TÊN TẠI ĐÂY
     Cột G (idx 6)  = Email
+    Cột H (idx 7)  = onboarding plan (link)
     Cột I (idx 8)  = DOB
     Cột J (idx 9)  = YOB
     Cột K (idx 10) = Area
@@ -93,9 +88,11 @@ def query_oe_profile(query_text):
     """
     rows, _ = fetch_sheet_data(SHEET_OE_PROFILE)
     if not rows:
+        print("SHEET PROFILE: no rows returned")
         return None
 
     q = normalize(query_text)
+    print(f"PROFILE QUERY normalized: '{q}' (from: '{query_text}')")
     matches = []
 
     for row in rows:
@@ -105,29 +102,27 @@ def query_oe_profile(query_text):
         col_k = safe_col(row, 10)  # Area
         col_d = safe_col(row, 3)   # ID
 
-        if not col_f:
-            continue
+        if not col_f or col_f.strip() == "Full Name":
+            continue  # bỏ dòng header
 
         name_norm = normalize(col_f)
-        # Tách các phần của họ tên để so khớp tên ngắn
         name_parts = name_norm.split()
-        # Tên (phần cuối họ tên tiếng Việt), tên đệm, tên đầy đủ
         short_name = name_parts[-1] if name_parts else ""
-        # Họ + tên = 2 phần cuối
         last_two = " ".join(name_parts[-2:]) if len(name_parts) >= 2 else name_norm
 
         matched = (
-            q == name_norm or          # Khớp hoàn toàn
-            q == short_name or         # Khớp tên ngắn: "quý", "thi", "long"...
-            q in name_norm or          # Query nằm trong tên đầy đủ
-            name_norm in q or          # Tên đầy đủ nằm trong query
-            q in last_two or           # Query khớp phần "họ tên" ngắn
-            # Khớp từng từ: nếu query có >= 3 ký tự và là substring của tên
-            (len(q) >= 3 and any(q in part for part in name_parts)) or
-            (len(q) >= 3 and short_name.startswith(q))
+            q == name_norm
+            or q == short_name
+            or q in name_norm
+            or name_norm in q
+            or q in last_two
+            or (len(q) >= 2 and any(part == q for part in name_parts))
+            or (len(q) >= 3 and any(q in part for part in name_parts))
+            or (len(q) >= 3 and short_name.startswith(q))
         )
 
         if matched:
+            print(f"  MATCHED: {col_f}")
             matches.append({
                 "ten": col_f,
                 "email": col_g,
@@ -137,11 +132,12 @@ def query_oe_profile(query_text):
             })
 
     if not matches:
+        print(f"  No profile match for '{q}'")
         return None
 
     lines = []
     for m in matches[:5]:
-        line = f"👤 *{m['ten']}*"
+        line = f"👤 {m['ten']}"
         if m['rank']:
             line += f"\n   🏷️ Rank: {m['rank']}"
         if m['email']:
@@ -158,9 +154,8 @@ def query_oe_profile(query_text):
 def query_task_calendar(query_text):
     """
     Sheet: OE Task Calendar
-    Cột H (idx 7) = Tên nhân viên (không dấu)
     Cột E (idx 4) = Tên Task
-    Tìm theo tên nhân viên hoặc tên task
+    Cột H (idx 7) = Tên nhân viên (không dấu)
     """
     rows, _ = fetch_sheet_data(SHEET_TASK_CALENDAR)
     if not rows:
@@ -186,7 +181,6 @@ def query_task_calendar(query_text):
     if not matches:
         return None
 
-    # Nhóm theo PIC
     by_pic = {}
     for m in matches:
         pic = m["pic"] or "Chưa phân công"
@@ -195,7 +189,7 @@ def query_task_calendar(query_text):
     lines = []
     for pic, tasks in list(by_pic.items())[:5]:
         task_list = "\n   • ".join(tasks[:10])
-        lines.append(f"👷 *{pic}*\n   • {task_list}")
+        lines.append(f"👷 {pic}\n   • {task_list}")
 
     return "📅 Task Calendar OE:\n\n" + "\n\n".join(lines)
 
@@ -203,9 +197,8 @@ def query_task_calendar(query_text):
 def query_oe_library(query_text):
     """
     Sheet: OE Library
-    Cột C (idx 2) = Tên công việc / tài liệu
+    Cột C (idx 2) = Tên tài liệu
     Cột E (idx 4) = Link
-    Tìm kiếm mờ theo tên (có dấu hoặc không)
     """
     rows, _ = fetch_sheet_data(SHEET_OE_LIBRARY)
     if not rows:
@@ -215,8 +208,8 @@ def query_oe_library(query_text):
     matches = []
 
     for row in rows:
-        col_c = safe_col(row, 2)  # Tên
-        col_e = safe_col(row, 4)  # Link
+        col_c = safe_col(row, 2)
+        col_e = safe_col(row, 4)
 
         if not col_c:
             continue
@@ -239,10 +232,6 @@ def query_oe_library(query_text):
 
 
 def query_onboarding(query_text):
-    """
-    Sheet: 3.3 Onboarding SOC OE và 3.4 Onboarding AOM
-    Trả về toàn bộ nội dung chính của 2 sheet này
-    """
     results = []
     for sheet_name, label in [
         (SHEET_ONBOARDING_33, "3.3 Onboarding SOC OE"),
@@ -253,7 +242,6 @@ def query_onboarding(query_text):
             results.append(f"❌ Không lấy được dữ liệu sheet {label}")
             continue
 
-        # Lấy các dòng có nội dung (bỏ dòng trống)
         lines = []
         for row in rows:
             non_empty = [c for c in row if c.strip()]
@@ -261,122 +249,104 @@ def query_onboarding(query_text):
                 lines.append(" | ".join(non_empty))
 
         if lines:
-            preview = "\n".join(lines[:20])  # Giới hạn 20 dòng đầu
-            results.append(f"📋 *{label}*:\n{preview}")
+            preview = "\n".join(lines[:20])
+            results.append(f"📋 {label}:\n{preview}")
         else:
-            results.append(f"📋 *{label}*: (Không có dữ liệu)")
+            results.append(f"📋 {label}: (Không có dữ liệu)")
 
     return "\n\n".join(results)
 
 
 # ===================== INTENT DETECTION =====================
 
+# Danh sách từ dừng để lọc khi phân tích câu ngắn
+FILLER_WORDS = {
+    "la", "ai", "o", "dau", "the", "nao", "gi", "khong", "co",
+    "tim", "hoi", "bot", "cho", "biet", "ve", "cua", "voi",
+    "toi", "minh", "ban", "oi", "nhe", "nha", "duoc", "khong"
+}
+
 def detect_intent(message_text):
-    """Phát hiện ý định của user để routing đúng sheet"""
     msg = normalize(message_text)
+    print(f"DETECT INTENT for: '{msg}'")
 
     # --- Onboarding ---
-    onboarding_kw = ["onboar", "onboard", "3.3", "3.4", "nhap mon", "nhan mon"]
-    if any(kw in msg for kw in onboarding_kw) or re.search(r'\bob\b', msg):
+    if any(kw in msg for kw in ["onboar", "onboard", "3.3", "3.4", "nhap mon", "nhan mon"]):
+        return "onboarding"
+    if re.search(r'\bob\b', msg):
         return "onboarding"
 
-    # --- Library / tài liệu + link ---
-    library_kw = ["link", "tai lieu", "huong dan", "quy trinh", "library", "thu vien", "tim tai lieu"]
-    if any(kw in msg for kw in library_kw):
+    # --- Library ---
+    if any(kw in msg for kw in ["link", "tai lieu", "huong dan", "quy trinh", "library", "thu vien"]):
         return "library"
 
     # --- Task / PIC ---
-    task_kw = ["task", "cong viec", "pic", "phu trach", "ai lam", "lam gi", "lich", "calendar"]
-    if any(kw in msg for kw in task_kw):
+    if any(kw in msg for kw in ["task", "cong viec", "pic", "phu trach", "ai lam", "lam gi", "lich", "calendar"]):
         return "task"
 
-    # --- OE Team member: câu hỏi tường minh về người ---
-    team_kw = ["oe team", "team oe", "thanh vien", "nhan vien",
-               "la ai", "ai la", "gioi thieu", "ten la", "la gi",
-               "cho biet ve", "thong tin ve", "email cua", "email của"]
-    if any(kw in msg for kw in team_kw):
+    # --- Profile (tường minh) ---
+    if any(kw in msg for kw in ["la ai", "ai la", "gioi thieu", "ten la", "thong tin ve",
+                                  "email cua", "thanh vien", "nhan vien", "oe team", "team oe"]):
         return "profile"
 
-    # --- Heuristic: câu ngắn 1-3 từ, không phải câu hỏi chung → thử profile ---
-    # VD: "Quý", "Quý là ai", "Thi", "Long", "Linh"
+    # --- Heuristic: câu ngắn → thử profile ---
+    # Lọc bỏ filler words, nếu chỉ còn 1-2 từ thực có nghĩa → đây là tên người
     words = msg.strip().split()
-    # Xóa từ dừng phổ biến
-    filler = {"la", "ai", "o", "dau", "the", "nao", "gi", "khong", "co", "tim", "hoi", "bot"}
-    real_words = [w for w in words if w not in filler and len(w) >= 2]
-    if len(real_words) <= 2 and real_words:
+    real_words = [w for w in words if w not in FILLER_WORDS and len(w) >= 2]
+    print(f"  real_words after filter: {real_words}")
+    if 1 <= len(real_words) <= 3:
         return "profile"
 
     return None
 
 
 def extract_search_term(message_text, intent):
-    """Trích xuất từ khoá tìm kiếm từ câu hỏi"""
     msg = message_text.strip()
-    # Xóa các từ phổ biến không cần thiết
     stopwords = [
         "cho tôi biết", "cho mình biết", "tìm", "kiếm", "hỏi",
         "ai là", "ai đang", "thông tin về", "thông tin của",
         "task của", "công việc của", "pic của", "phụ trách",
         "link của", "tài liệu về", "tài liệu của",
-        "là ai", "ở đâu", "như thế nào",
+        "là ai", "ở đâu", "như thế nào", "là gì",
         "cho xin", "cho hỏi", "mình hỏi",
-        "oe team", "team oe", "onboarding", "onboard", "ob",
+        "oe team", "team oe", "onboarding", "onboard",
         "@", "bot", "khủng long", "khung long",
     ]
     result = msg
     for sw in stopwords:
         result = re.sub(re.escape(sw), "", result, flags=re.IGNORECASE)
     result = result.strip(" ?.,!-")
-    # Nếu còn quá ngắn thì dùng nguyên câu
     if len(result) < 2:
         return msg
     return result
 
 
 def query_sheets(message_text):
-    """
-    Routing chính: phát hiện intent rồi gọi đúng hàm query
-    Trả về string kết quả hoặc None nếu không match
-    """
     intent = detect_intent(message_text)
     search_term = extract_search_term(message_text, intent)
-
-    print(f"INTENT: {intent} | SEARCH: {search_term}")
+    print(f"INTENT: {intent} | SEARCH_TERM: '{search_term}'")
 
     if intent == "onboarding":
         return query_onboarding(search_term)
 
     if intent == "library":
-        result = query_oe_library(search_term)
-        if not result:
-            result = query_oe_library(message_text)
-        return result
+        return query_oe_library(search_term) or query_oe_library(message_text)
 
     if intent == "task":
-        result = query_task_calendar(search_term)
-        if not result:
-            result = query_task_calendar(message_text)
-        return result
+        return query_task_calendar(search_term) or query_task_calendar(message_text)
 
     if intent == "profile":
-        result = query_oe_profile(search_term)
-        if not result:
-            result = query_oe_profile(message_text)
-        return result
+        return (
+            query_oe_profile(search_term)
+            or query_oe_profile(message_text)
+        )
 
-    # Nếu không detect được intent rõ → thử profile trước (hỏi về người)
-    # rồi đến task, library
-    result = query_oe_profile(search_term)
-    if result:
-        return result
-    result = query_task_calendar(search_term)
-    if result:
-        return result
-    result = query_oe_library(search_term)
-    if result:
-        return result
-
-    return None  # Để fallback xuống AI
+    # Không detect được → thử tuần tự
+    return (
+        query_oe_profile(search_term)
+        or query_task_calendar(search_term)
+        or query_oe_library(search_term)
+    )
 
 
 # ===================== COMPANY INFO & AI =====================
@@ -411,24 +381,26 @@ Nếu hoàn toàn không biết, hãy nói: "Tôi chưa có thông tin này, vui
 - Nộp hóa đơn gốc cho phòng kế toán trước ngày 25 hàng tháng
 
 === NHÂN VẬT NỔI BẬT ===
-- Kate : Lead team OE!
+- Kate: Lead team OE!
 - Thọ / Hữu Thọ / Tho / Trương Hữu Thọ / tho.truonghuu@spxexpress.com: Chủ Nhân Của Tôi!
 
 === VUI VẺ ===
 - Nhậu / uống rượu / uống bia: Đô bất tử hahaha!
 """
 
+# CUSTOM_REPLIES: tất cả keyword đều lowercase để khớp với msg.lower()
 CUSTOM_REPLIES = [
     {
-        "keywords": ["KATE"],
-        "reply": "Chị KATE (Mỹ) — Lead Team OE! 👑"
+        # Kate / KATE / Kéc / Kec / Mỹ / My
+        "keywords": ["kate", "kec", "kéc", "ngoc my", "ngọc mỹ"],
+        "reply": "Chị Kate (Liêu Ngọc Mỹ) — Lead Team OE! 👑\n📧 ngocmy.lieu@spxexpress.com"
     },
     {
-        "keywords": ["thọ là ai", "hữu thọ", "trương hữu thọ", "tho.truonghuu", "chủ nhân"],
-        "reply": "Anh Thọ (Trương Hữu Thọ) — Chủ Nhân Của Tôi! 🦖"
+        "keywords": ["thọ là ai", "hữu thọ", "trương hữu thọ", "tho.truonghuu", "chủ nhân", "tho la ai"],
+        "reply": "Anh Thọ (Trương Hữu Thọ) — Chủ Nhân Của Tôi! 🦖\n📧 tho.truonghuu@spxexpress.com"
     },
     {
-        "keywords": ["nhậu được bao nhiêu", "nhậu được đô", "uống được bao nhiêu", "uống bia", "uống rượu", "nhậu"],
+        "keywords": ["nhậu", "uống bia", "uống rượu", "nhau"],
         "reply": "Đô bất tử hahaha! 🍺🔥"
     },
 ]
@@ -476,10 +448,16 @@ def send_message_group(group_id, text):
         print(f"SEND GROUP ERROR: {e}")
 
 def check_custom_reply(message_text):
+    # So sánh lowercase để không bị lỗi hoa/thường
     msg = message_text.lower().strip()
+    # Cũng normalize để bắt cả "Kéc" → "kec"
+    msg_norm = normalize(message_text)
     for item in CUSTOM_REPLIES:
-        if any(kw in msg for kw in item["keywords"]):
-            return item["reply"]
+        for kw in item["keywords"]:
+            kw_norm = normalize(kw)
+            if kw_norm in msg_norm or kw_norm in msg:
+                print(f"CUSTOM REPLY matched: '{kw}'")
+                return item["reply"]
     return None
 
 def ask_groq(message_text):
@@ -532,13 +510,13 @@ def fallback_reply(message_text):
     if any(w in msg for w in ["xin chào", "hello", "hi", "chào", "hey"]):
         return "Xin chào! 👋 Tôi là bot Khủng Long 5 Canh của OE Team. Tôi có thể giúp gì cho bạn?"
     elif any(w in msg for w in ["giờ làm việc", "mấy giờ", "làm việc"]):
-        return "⏰ Giờ làm việc:\n- Thứ 2 - Thứ 7: 9:00 - 18:00\n- Chủ nhật: nghỉ\n- Lễ: Nghỉ"
+        return "⏰ Giờ làm việc:\n- Thứ 2 - Thứ 7: 9:00 - 18:00\n- Chủ nhật: Nghỉ\n- Lễ: Nghỉ"
     elif any(w in msg for w in ["nghỉ phép", "xin nghỉ"]):
         return "📋 Xin nghỉ phép:\n1. Báo trước ít nhất 3 ngày\n2. Gửi đơn qua form HR\n3. Chờ quản lý phê duyệt"
     elif any(w in msg for w in ["help", "giúp", "menu"]):
         return (
             "📋 Tôi có thể giúp:\n"
-            "- 👤 Thông tin thành viên OE (hỏi tên người)\n"
+            "- 👤 Thông tin thành viên OE (gõ tên người)\n"
             "- 📅 Task & PIC (hỏi 'task của ai', 'ai phụ trách...')\n"
             "- 📚 Tài liệu & link (hỏi 'link...', 'tài liệu...')\n"
             "- 🎓 Onboarding (hỏi 'OB', 'onboarding', '3.3', '3.4')\n"
@@ -547,21 +525,23 @@ def fallback_reply(message_text):
             "Cứ hỏi tự nhiên nhé! 😊"
         )
     else:
-        return "Liên hệ hỗ trợ:\n- THỌ:......................\n- Mail: tho.truonghuu@spxexpress.com"
+        return "Liên hệ hỗ trợ:\n- THỌ: tho.truonghuu@spxexpress.com"
 
 
 def get_reply(message_text):
-    # 1. Custom reply hardcoded
+    print(f"\n===== NEW MESSAGE: '{message_text}' =====")
+
+    # 1. Custom reply (hardcoded, ưu tiên cao nhất)
     custom = check_custom_reply(message_text)
     if custom:
         return custom
 
-    # 2. Google Sheets query
+    # 2. Google Sheets
     sheet_result = query_sheets(message_text)
     if sheet_result:
         return sheet_result
 
-    # 3. AI (Groq → Gemini)
+    # 3. AI
     reply = ask_groq(message_text)
     if reply:
         return reply
@@ -574,7 +554,6 @@ def get_reply(message_text):
 
 
 def extract_group_message(event):
-    """Lấy tin nhắn từ nhóm, xóa phần @mention"""
     msg = event.get("message", {})
     text = msg.get("text", {}).get("plain_text", "")
     if not text:
