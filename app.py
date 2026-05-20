@@ -530,9 +530,9 @@ def ask_gemini(message_text):
 def fallback_reply(message_text):
     msg = message_text.lower().strip()
     if any(w in msg for w in ["xin chào", "hello", "hi", "chào", "hey"]):
-        return "Xin chào! 👋 Tôi là bot Khủng Long 5 Canh của SPX Express. Tôi có thể giúp gì cho bạn?"
+        return "Xin chào! 👋 Tôi là bot Khủng Long 5 Canh của OE Team. Tôi có thể giúp gì cho bạn?"
     elif any(w in msg for w in ["giờ làm việc", "mấy giờ", "làm việc"]):
-        return "⏰ Giờ làm việc:\n- Thứ 2 - Thứ 6: 8:00 - 17:30\n- Thứ 7: 8:00 - 12:00\n- Chủ nhật: Nghỉ"
+        return "⏰ Giờ làm việc:\n- Thứ 2 - Thứ 7: 9:00 - 18:00\n- Chủ nhật: nghỉ\n- Lễ: Nghỉ"
     elif any(w in msg for w in ["nghỉ phép", "xin nghỉ"]):
         return "📋 Xin nghỉ phép:\n1. Báo trước ít nhất 3 ngày\n2. Gửi đơn qua form HR\n3. Chờ quản lý phê duyệt"
     elif any(w in msg for w in ["help", "giúp", "menu"]):
@@ -547,7 +547,7 @@ def fallback_reply(message_text):
             "Cứ hỏi tự nhiên nhé! 😊"
         )
     else:
-        return "Liên hệ hỗ trợ:\n- IT: it-support@spxexpress.com\n- HR: hr@spxexpress.com"
+        return "Liên hệ hỗ trợ:\n- THỌ:......................\n- Mail: tho.truonghuu@spxexpress.com"
 
 
 def get_reply(message_text):
