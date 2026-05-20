@@ -383,7 +383,7 @@ Nếu hoàn toàn không biết, hãy nói: "Tôi chưa có thông tin này, vui
 - Nộp hóa đơn gốc cho phòng kế toán trước ngày 25 hàng tháng
 
 === NHÂN VẬT NỔI BẬT ===
-- Thy / Lê Ngọc Gia Thy / Gia Thy Lê / Gia Thy / thy.legia@spxexpress.com: Trước kia là SUP của SW SOC, giờ là SẾP quyền lực của VNC haha!
+- Kate / Kéc / Kec / My / ngocmy.lieu@spxexpress.com: Là Lead Team OE!
 - Thọ / Hữu Thọ / Tho / Trương Hữu Thọ / tho.truonghuu@spxexpress.com: Chủ Nhân Của Tôi!
 
 === VUI VẺ ===
@@ -392,8 +392,8 @@ Nếu hoàn toàn không biết, hãy nói: "Tôi chưa có thông tin này, vui
 
 CUSTOM_REPLIES = [
     {
-        "keywords": ["thy là ai", "lê ngọc gia thy", "thy.legia", "gia thy"],
-        "reply": "Chị Thy (Lê Ngọc Gia Thy) — Trước kia là SUP của SW SOC, giờ là SẾP quyền lực của VNC haha! 👑"
+        "keywords": ["Kete là ai", "Kéc", "kec", "Mỹ"],
+        "reply": "Chị Kate (Mỹ) — Là Lead Team OE!! 👑"
     },
     {
         "keywords": ["thọ là ai", "hữu thọ", "trương hữu thọ", "tho.truonghuu", "chủ nhân"],
