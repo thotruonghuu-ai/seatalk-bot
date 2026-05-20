@@ -78,12 +78,18 @@ def safe_col(row, idx):
 
 def query_oe_profile(query_text):
     """
-    Sheet: OE team profile
-    Cột D (idx 3) = Tên đầy đủ
-    Cột F (idx 5) = Chức vụ / Role
-    Cột G (idx 6) = Email hoặc thông tin liên lạc
-    Cột K (idx 10) = Thông tin khác
-    Tìm kiếm theo tên (có dấu hoặc không dấu, tên đầy đủ hoặc tên ngắn)
+    Sheet: OE team profile (Sheet 0)
+    Cột A (idx 0)  = Status
+    Cột B (idx 1)  = Onboard date
+    Cột C (idx 2)  = Rank
+    Cột D (idx 3)  = ID (SPXVN...)
+    Cột E (idx 4)  = Size
+    Cột F (idx 5)  = Full Name  ← TÌM KIẾM TÊN TẠI ĐÂY
+    Cột G (idx 6)  = Email
+    Cột I (idx 8)  = DOB
+    Cột J (idx 9)  = YOB
+    Cột K (idx 10) = Area
+    Cột L (idx 11) = Remark
     """
     rows, _ = fetch_sheet_data(SHEET_OE_PROFILE)
     if not rows:
@@ -93,42 +99,57 @@ def query_oe_profile(query_text):
     matches = []
 
     for row in rows:
-        col_d = safe_col(row, 3)  # Tên
-        col_f = safe_col(row, 5)  # Role
-        col_g = safe_col(row, 6)  # Email/liên lạc
-        col_k = safe_col(row, 10) # Thông tin khác
+        col_f = safe_col(row, 5)   # Full Name
+        col_g = safe_col(row, 6)   # Email
+        col_c = safe_col(row, 2)   # Rank
+        col_k = safe_col(row, 10)  # Area
+        col_d = safe_col(row, 3)   # ID
 
-        if not col_d:
+        if not col_f:
             continue
 
-        name_norm = normalize(col_d)
-        # Tách tên ngắn (tên cuối trong họ tên)
+        name_norm = normalize(col_f)
+        # Tách các phần của họ tên để so khớp tên ngắn
         name_parts = name_norm.split()
+        # Tên (phần cuối họ tên tiếng Việt), tên đệm, tên đầy đủ
         short_name = name_parts[-1] if name_parts else ""
+        # Họ + tên = 2 phần cuối
+        last_two = " ".join(name_parts[-2:]) if len(name_parts) >= 2 else name_norm
 
-        # So sánh: query có trong tên đầy đủ, hoặc tên đầy đủ có trong query, hoặc tên ngắn khớp
-        if (q in name_norm or name_norm in q or
-                short_name == q or
-                (len(q) >= 3 and (q in name_norm or short_name.startswith(q)))):
+        matched = (
+            q == name_norm or          # Khớp hoàn toàn
+            q == short_name or         # Khớp tên ngắn: "quý", "thi", "long"...
+            q in name_norm or          # Query nằm trong tên đầy đủ
+            name_norm in q or          # Tên đầy đủ nằm trong query
+            q in last_two or           # Query khớp phần "họ tên" ngắn
+            # Khớp từng từ: nếu query có >= 3 ký tự và là substring của tên
+            (len(q) >= 3 and any(q in part for part in name_parts)) or
+            (len(q) >= 3 and short_name.startswith(q))
+        )
+
+        if matched:
             matches.append({
-                "ten": col_d,
-                "chuc_vu": col_f,
-                "lien_lac": col_g,
-                "khac": col_k
+                "ten": col_f,
+                "email": col_g,
+                "rank": col_c,
+                "area": col_k,
+                "id": col_d,
             })
 
     if not matches:
         return None
 
     lines = []
-    for m in matches[:5]:  # Giới hạn 5 kết quả
+    for m in matches[:5]:
         line = f"👤 *{m['ten']}*"
-        if m['chuc_vu']:
-            line += f"\n   🏷️ {m['chuc_vu']}"
-        if m['lien_lac']:
-            line += f"\n   📧 {m['lien_lac']}"
-        if m['khac']:
-            line += f"\n   ℹ️ {m['khac']}"
+        if m['rank']:
+            line += f"\n   🏷️ Rank: {m['rank']}"
+        if m['email']:
+            line += f"\n   📧 {m['email']}"
+        if m['area']:
+            line += f"\n   📍 Area: {m['area']}"
+        if m['id']:
+            line += f"\n   🪪 ID: {m['id']}"
         lines.append(line)
 
     return "📋 Thông tin thành viên OE:\n\n" + "\n\n".join(lines)
@@ -253,29 +274,36 @@ def query_onboarding(query_text):
 def detect_intent(message_text):
     """Phát hiện ý định của user để routing đúng sheet"""
     msg = normalize(message_text)
-    msg_raw = message_text.lower().strip()
 
     # --- Onboarding ---
-    onboarding_kw = ["onboar", "onboard", "ob ", " ob", "^ob$", "3.3", "3.4", "nhap mon", "nhập môn"]
+    onboarding_kw = ["onboar", "onboard", "3.3", "3.4", "nhap mon", "nhan mon"]
     if any(kw in msg for kw in onboarding_kw) or re.search(r'\bob\b', msg):
         return "onboarding"
 
     # --- Library / tài liệu + link ---
-    library_kw = ["link", "tai lieu", "tài liệu", "huong dan", "hướng dẫn", "quy trinh", "quy trình",
-                  "library", "thu vien", "thư viện", "tim tai lieu", "tìm tài liệu"]
+    library_kw = ["link", "tai lieu", "huong dan", "quy trinh", "library", "thu vien", "tim tai lieu"]
     if any(kw in msg for kw in library_kw):
         return "library"
 
     # --- Task / PIC ---
-    task_kw = ["task", "cong viec", "công việc", "pic", "phu trach", "phụ trách",
-               "ai lam", "ai làm", "lam gi", "làm gì", "lich", "lịch", "calendar"]
+    task_kw = ["task", "cong viec", "pic", "phu trach", "ai lam", "lam gi", "lich", "calendar"]
     if any(kw in msg for kw in task_kw):
         return "task"
 
-    # --- OE Team member ---
-    team_kw = ["oe team", "team oe", "thanh vien", "thành viên", "nhan vien", "nhân viên",
-               "ai la", "ai là", "gioi thieu", "giới thiệu", "ten la", "tên là"]
+    # --- OE Team member: câu hỏi tường minh về người ---
+    team_kw = ["oe team", "team oe", "thanh vien", "nhan vien",
+               "la ai", "ai la", "gioi thieu", "ten la", "la gi",
+               "cho biet ve", "thong tin ve", "email cua", "email của"]
     if any(kw in msg for kw in team_kw):
+        return "profile"
+
+    # --- Heuristic: câu ngắn 1-3 từ, không phải câu hỏi chung → thử profile ---
+    # VD: "Quý", "Quý là ai", "Thi", "Long", "Linh"
+    words = msg.strip().split()
+    # Xóa từ dừng phổ biến
+    filler = {"la", "ai", "o", "dau", "the", "nao", "gi", "khong", "co", "tim", "hoi", "bot"}
+    real_words = [w for w in words if w not in filler and len(w) >= 2]
+    if len(real_words) <= 2 and real_words:
         return "profile"
 
     return None
@@ -383,7 +411,7 @@ Nếu hoàn toàn không biết, hãy nói: "Tôi chưa có thông tin này, vui
 - Nộp hóa đơn gốc cho phòng kế toán trước ngày 25 hàng tháng
 
 === NHÂN VẬT NỔI BẬT ===
-- Kate / Kéc / Kec / My / ngocmy.lieu@spxexpress.com: Là Lead Team OE!
+- Thy / Lê Ngọc Gia Thy / Gia Thy Lê / Gia Thy / thy.legia@spxexpress.com: Trước kia là SUP của SW SOC, giờ là SẾP quyền lực của VNC haha!
 - Thọ / Hữu Thọ / Tho / Trương Hữu Thọ / tho.truonghuu@spxexpress.com: Chủ Nhân Của Tôi!
 
 === VUI VẺ ===
@@ -392,8 +420,8 @@ Nếu hoàn toàn không biết, hãy nói: "Tôi chưa có thông tin này, vui
 
 CUSTOM_REPLIES = [
     {
-        "keywords": ["Kete là ai", "Kéc", "kec", "Mỹ"],
-        "reply": "Chị Kate (Mỹ) — Là Lead Team OE!! 👑"
+        "keywords": ["thy là ai", "lê ngọc gia thy", "thy.legia", "gia thy"],
+        "reply": "Chị Thy (Lê Ngọc Gia Thy) — Trước kia là SUP của SW SOC, giờ là SẾP quyền lực của VNC haha! 👑"
     },
     {
         "keywords": ["thọ là ai", "hữu thọ", "trương hữu thọ", "tho.truonghuu", "chủ nhân"],
